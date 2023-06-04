@@ -46,7 +46,7 @@ View(life)
 ```{r}
 #GDP 15% [17]  keep GDP to have it Imputed even if quite high percentage, assuming it is crucial to predicting Life.expectancy as richer countries have better health access/Medicine and tech. The numbers appear to be GDP per capita which helps as it addresses GDP/Population. GDP per Capita and Population would be too closely related and prob attribute to covariance.  
 #Adjusting text angle to vis_miss
-imputeMedian= preProcess(life[,-c(1:4,9)],method="medianImpute") #predictors 1:3, 9, 17 and response is 4
+imputeMedian= preProcess(life[,-c(1:4,9)],method="medianImpute") #predictors 1:4, 9 and response is 4
 cleandataMedian = predict(imputeMedian,newdata=life)
 dim(cleandataMedian)
 vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
@@ -67,8 +67,15 @@ vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust =
 ```{r}
 ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
 
+#Converting GDP to Log 
+cleandataMedian$logGDP = log(cleandataMedian$GDP)
+#converting Life.expectancy to log 
+cleandataMedian$logLife.expectancy = log(cleandataMedian$Life.expectancy)
+
 #Log transformation on GDP 
-ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = log(GDP), y = Life.expectancy))
+ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = logGDP, y = logLife.expectancy))
+
+
 
 
 ```
@@ -98,9 +105,15 @@ ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = log(GDP), y = Lif
 ```
 
 
+#Residuals for chosen MLR model 
+```{r}
+eightVar = lm(Life.expectancy~HIV.AIDS+Schooling+Alcohol+BMI+Polio+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = cleandataMedian)
+summary(eightVar)
+confint(eightVar)
 
-
-
+#Visuals for Residuals
+plot(eightVar)
+```
 
 
 
