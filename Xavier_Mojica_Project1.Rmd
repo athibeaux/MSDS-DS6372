@@ -1,0 +1,108 @@
+---
+title: "Project 1"
+author: "Xavier Mojica"
+date: "2023-06-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Loading Libraries
+```{r}
+library(GGally)
+library(boot)
+library(ggplot2)
+library(tidyverse)
+library(lmboot)
+library(caret)
+library(naniar)
+library(utils)
+library(stats)
+```
+
+##Reading in Dataset
+```{r}
+setwd("/Users/xaviermojica/Desktop/Stats2/Project1") #/Users/xaviermojica/
+life = read.csv("Life Expectancy Data (1).csv")
+```
+
+
+```{r}
+ggplot(data = life) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+```
+##Upon looking at the graph of the original data set, it appears that there needs to be a log transformation on the X or the GDP as we are interested in seeing the relation between Life Expenctancy and GDP. 
+
+##Checking Data Types
+```{r}
+str(life)
+vis_miss(life)
+dim(life)
+View(life)
+```
+
+#Imputing using Median
+```{r}
+#GDP 15% [17]  keep GDP to have it Imputed even if quite high percentage, assuming it is crucial to predicting Life.expectancy as richer countries have better health access/Medicine and tech. The numbers appear to be GDP per capita which helps as it addresses GDP/Population. GDP per Capita and Population would be too closely related and prob attribute to covariance.  
+#Adjusting text angle to vis_miss
+imputeMedian= preProcess(life[,-c(1:4,9)],method="medianImpute") #predictors 1:3, 9, 17 and response is 4
+cleandataMedian = predict(imputeMedian,newdata=life)
+dim(cleandataMedian)
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+#Literature says that over 10% missing data can contribute to bias 
+#HepatitsB [9] at 19% , Population 22% [18]. 
+#Removing columns 9 and 18
+cleandataMedian = cleandataMedian[,-c(18,9)]
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+#removing last NA
+cleandataMedian = na.omit(cleandataMedian)
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+```
+
+
+```{r}
+ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+
+#Log transformation on GDP 
+ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = log(GDP), y = Life.expectancy))
+
+
+```
+
+#Imputing and Removing
+```{r}
+#Imputing all save for columns 1:4 and Removing last Na in 
+imputeMedian= preProcess(life[,-c(1:4)],method="medianImpute") #predictors 1:4 and response is 4
+cleandataMedian1 = predict(imputeMedian,newdata=life)
+dim(cleandataMedian1)
+vis_miss(cleandataMedian1) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+#removing last NA <0,1% 
+cleandataMedian1 = na.omit(cleandataMedian1)
+vis_miss(cleandataMedian1) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+dim(cleandataMedian1)
+
+```
+
+```{r}
+ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+
+#log transformation on GDP 
+ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = log(GDP), y = Life.expectancy))
+
+
+```
+
+
+
+
+
+
+
+
+
+
