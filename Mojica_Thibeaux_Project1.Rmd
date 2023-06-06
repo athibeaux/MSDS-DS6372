@@ -21,6 +21,9 @@ library(naniar)
 library(utils)
 library(stats)
 library(corrplot)
+library(ISLR)
+library(car)
+library(olsrr)
 ```
 
 ##Reading in Dataset
@@ -116,5 +119,163 @@ cleandataMedian$DualYears <- cut(as.numeric(cleandataMedian$Year), breaks=c(0, 2
 cleandataMedian %>% ggplot() + geom_bar(aes(x = DualYears))
 
 summary(cleandataMedian$DualYears)
+
+```
+Model with all non-redundant variables:
+```{r}
+
+model <- lm(Life.expectancy~Status + Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria +
+              HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling, cleandataMedian)
+summary(model)
+plot(model)
+
+# Polio data with trend line
+cleandataMedian %>% ggplot(aes(Life.expectancy, Polio)) + geom_smooth() + geom_point()
+
+vif(model)
 ```
 
+Feature Selection Tools: Forward Selection
+```{r}
+library(leaps)
+reg.fwd=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                   data=cleandataMedian,method="forward",nvmax=12)
+
+summary(reg.fwd)$adjr2
+summary(reg.fwd)$rss
+summary(reg.fwd)$bic
+
+
+par(mfrow=c(1,3))
+bics<-summary(reg.fwd)$bic
+plot(1:12,bics,type="l",ylab="BIC",xlab="# of predictors")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.fwd)$adjr2
+plot(1:12,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.fwd)$rss
+plot(1:12,rss,type="l",ylab="train RSS",xlab="# of predictors")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+
+# Define Fit for Feature Selection from Sadler's Class
+fit = lm(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+         data = cleandataMedian)
+summary(fit)
+
+# Forward Selection with OLS
+ols_step_forward_p(fit, penter = 0.05, details = TRUE)
+
+# Backward Selection with OLS
+ols_step_backward_p(fit, prem = 0.05, details = TRUE)
+
+# Stepwise Selection with OLS
+ols_step_both_p(fit, prem = 0.05, pent = 0.05, details = FALSE)
+```
+
+
+Splitting into Train/Test data:
+```{r}
+set.seed(1234)
+trainIndex<-createDataPartition(cleandataMedian$Life.expectancy,p=.5,list=F)  #p: proportion of data in train
+
+training<-cleandataMedian[trainIndex,]
+validate<-cleandataMedian[-trainIndex,]
+
+fwd.train=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                    data=training,method="forward",nvmax=12)
+
+#Creating a prediction function 
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+valMSE<-c()
+#note my index, i, is to 12 since that is how many predictors I went up to during fwd selection
+for (i in 1:12){
+  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
+  valMSE[i]<-mean((log(validate$Life.expectancy)-predictions)^2)
+}
+par(mfrow=c(1,1))
+plot(1:12,sqrt(valMSE),type="l",xlab="# of predictors",ylab="test vs train RMSE",ylim=c(0,.1))
+index<-which(valMSE==min(valMSE))
+points(index,sqrt(valMSE[index]),col="red",pch=10)
+
+trainMSE<-summary(fwd.train)$rss/nrow(training)
+lines(1:12,sqrt(trainMSE),lty=3,col="blue")  
+```
+
+Feature Selection Tools: Penalized Regression
+```{r}
+
+# Penalized Regression
+
+#Setting kfold parameters
+fitControl<-trainControl(method="repeatedcv",number=5,repeats=1) 
+
+#Fitting glmnet
+set.seed(1234)
+glmnet.fit<-train(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                  data=cleandataMedian,
+                  method="glmnet",
+                  trControl=fitControl
+)
+
+glmnet.fit
+plot(glmnet.fit)
+
+
+#Investigating coefficients
+opt.pen<-glmnet.fit$finalModel$lambdaOpt #penalty term
+coef(glmnet.fit$finalModel,opt.pen)
+
+
+summary(lm(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+          data=cleandataMedian))
+
+#Lets force a LASSO model and add complexity
+set.seed(1234)
+glmnet.fit2<-train(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths:Status + poly(Polio,2) + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                  data=cleandataMedian,
+                  method="glmnet",
+                  trControl=fitControl,
+                  tuneGrid=expand.grid(data.frame(alpha=1,lambda=seq(0,.05,.001)))
+)
+
+glmnet.fit2
+plot(glmnet.fit2)
+
+opt.pen<-glmnet.fit2$finalModel$lambdaOpt   #penalty term
+coef(glmnet.fit2$finalModel,opt.pen)
+
+# Different way to do GLMNET
+
+x=model.matrix(Life.expectancy~Alcohol + Measles + BMI + under.five.deaths:Status + poly(Polio,2) + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,cleandataMedian)[,-1]
+y=log(cleandataMedian$Life.expectancy)
+
+library(glmnet)
+set.seed(1234)
+
+#grid=10^seq(10,-2, length =100)
+#lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
+
+cv.out=cv.glmnet(x,y,alpha=1)
+plot(cv.out)
+bestlambda<-cv.out$lambda.1se
+coef(cv.out,s=bestlambda)
+```
