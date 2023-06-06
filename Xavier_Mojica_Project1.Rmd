@@ -113,7 +113,103 @@ confint(eightVar)
 
 #Visuals for Residuals
 plot(eightVar)
+
 ```
+
+
+
+
+
+
+
+
+
+#Forward, Backward, Stepwise Selection 
+```{r}
+library(MASS)
+#Full Model 
+set.seed(1246)
+fitFull = lm(Life.expectancy~Adult.Mortality + 
+     infant.deaths + Alcohol + percentage.expenditure + Measles + 
+     BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP,cleandataMedian)
+
+stepup = stepAIC(fitFull, direction = "forward", steps = 2000)
+
+stepdown= stepAIC(fitFull, direction = "backward", steps = 2000)
+
+stepboth = stepAIC(fitFull, direction = "both", steps = 2000)
+
+#summary for each model 
+up = summary(stepup)
+up
+down = summary(stepdown)
+down
+both = summary(stepboth)
+both
+```
+
+```{r}
+fitFull
+
+olsrr::ols_step_forward_aic(fitFull)
+```
+
+#KNN 
+```{r}
+fit_cont = trainControl(method = "repeatedcv", number = 10, repeats = 1)
+set.seed(136)
+
+knnfit = train(Life.expectancy~Adult.Mortality + infant.deaths + Alcohol + percentage.expenditure + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP, data = cleandataMedian, method = "knn", 
+               trControl = fit_cont, tuneGrid = expand.grid(k = c(1:30)))
+
+knnfit
+
+
+
+```
+
+
+
+#World Map, Color plotting 
+
+```{r}
+#Creating the World 
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+
+world_map = map_data("world") %>% 
+  filter(! long > 180)
+
+countries = world_map %>% 
+  distinct(region) %>% 
+  rowid_to_column()
+
+countries %>% 
+  ggplot(aes(fill = rowid, map_id = region)) +
+  geom_map(map = world_map) +
+  expand_limits(x = world_map$long, y = world_map$lat) +
+  coord_map("moll") +
+  theme_map()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Using rpart library
+#treeimb <- rpart(ExplVar ~ ., data = train)
+#pred.treeimb <- predict(treeimb, newdata = test)
+```
+
 
 
 
