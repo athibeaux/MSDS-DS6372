@@ -16,6 +16,7 @@ library(boot)
 library(ggplot2)
 library(tidyverse)
 library(lmboot)
+library(lattice)
 library(caret)
 library(naniar)
 library(utils)
@@ -94,6 +95,18 @@ vis_miss(cleandataMedian1) + theme(axis.text.x = element_text(angle = 90, hjust 
 dim(cleandataMedian1)
 
 ```
+#Multivariable Plots
+```{r}
+library(ISLR)
+library(data.table)
+library(GGally)
+library(ggplot2)
+
+ggpairs(cleandataMedian[,5:22], lower = list(continuous = wrap("points", color = "red", alpha = 0.5), combo = wrap("box", color = "orange", alpha = 0.3), discrete = wrap("facetbar", color = "yellow", alpha = 0.3) ),diag = list(continuous = wrap("densityDiag",  color = "blue", alpha = 0.5)))
+
+#ggpairs(cleandataMedian[,5:22], upper = list(continuous = wrap("cor", size = 4.75, align_percent = 1)))
+#ggscatmat(cleandataMedian, columns = 5:22)
+```
 
 ```{r}
 ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
@@ -159,45 +172,79 @@ olsrr::ols_step_forward_aic(fitFull)
 fit_cont = trainControl(method = "repeatedcv", number = 10, repeats = 1)
 set.seed(136)
 
-knnfit = train(Life.expectancy~Adult.Mortality + infant.deaths + Alcohol + percentage.expenditure + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP, data = cleandataMedian, method = "knn", 
-               trControl = fit_cont, tuneGrid = expand.grid(k = c(1:30)))
+knnfit = train(Life.expectancy~Adult.Mortality + infant.deaths + Alcohol + percentage.expenditure + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP, data =cleandataMedian, method = "knn", trControl = fit_cont, tuneGrid = expand.grid(k = c(1:30)))
 
 knnfit
 
-
-
 ```
-
-
 
 #World Map, Color plotting 
-
 ```{r}
 #Creating the World 
-library(ggplot2)
-library(tidyverse)
-library(ggthemes)
+#library(ggplot2)
+#library(tidyverse)
+#library(ggthemes)
 
-world_map = map_data("world") %>% 
-  filter(! long > 180)
+#world_map = map_data("world") %>% filter(! long > 180)
 
-countries = world_map %>% 
-  distinct(region) %>% 
-  rowid_to_column()
+#countries = world_map %>% distinct(region) %>% rowid_to_column()
 
-countries %>% 
-  ggplot(aes(fill = rowid, map_id = region)) +
-  geom_map(map = world_map) +
-  expand_limits(x = world_map$long, y = world_map$lat) +
-  coord_map("moll") +
-  theme_map()
+#countries %>% ggplot(aes(fill = rowid, map_id = region)) + geom_map(map = world_map) + expand_limits(x = world_map$long, y = world_map$lat) + coord_map("moll") +theme_map()
 
 
 ```
 
 
+#Color world plotting
+```{r}
+library(ggplot2)
+library(tidyverse)
+
+#rename cleandataMedian for the map
+dataforcolmap = cleandataMedian
+#but first renaming column Country in dataforcolmap 
+colnames(dataforcolmap)[1] = "region"
+view(dataforcolmap)
 
 
+#getting map data for plotting 
+mapdata = map_data("world")
+view(mapdata)
+
+#joining map data with dataforcolmap 
+mapdata = left_join(mapdata,dataforcolmap, by = "region")
+view(mapdata)
+
+#filtering out NAs for life expectancy , status, Income.composition.of.resources
+#Life Exp
+mapdata1 = mapdata %>% filter(!is.na(mapdata$Life.expectancy))
+
+#Status 
+mapdata2 = mapdata %>% filter(!is.na(mapdata$Status))
+
+#Income
+mapdata3 = mapdata %>% filter(!is.na(mapdata$Income.composition.of.resources))
+
+
+#mapping mapdata1 for Life Exp 
+
+map1 = ggplot(mapdata1, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Life.expectancy), color = "black")+ theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Life Expectancy per Country") + scale_fill_gradient(low = "red", high = "yellow") + guides(fill=guide_legend(title="Life Expectancy"))
+map1
+
+
+
+#mapping mapdata2 for Status 
+
+mapStatus = ggplot(mapdata2, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Status, col = "orange"), color = "black") + theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Country's Status: Developed v. Developing") 
+mapStatus
+
+
+#mapping mapdata3 for Income Composition of Resources 
+
+mapIncome = ggplot(mapdata3, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Income.composition.of.resources), color = "black")+ theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Income Composition of Resources per Country") + scale_fill_gradient(low = "red", high = "yellow")+ guides(fill=guide_legend(title="Income Composition of Resources"))
+mapIncome
+
+```
 
 
 
