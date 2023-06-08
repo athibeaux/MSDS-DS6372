@@ -40,7 +40,6 @@ ggplot(data = life) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
 str(life)
 vis_miss(life)
 dim(life)
-View(life)
 ```
 
 #Imputing using Median
@@ -89,14 +88,6 @@ dim(cleandataMedian1)
 
 ```
 
-Before and after log transforming GDP, using cleandatamedian1
-```{r}
-ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
-
-#log transformation on GDP 
-ggplot(data = cleandataMedian1) + geom_point(mapping = aes(x = log(GDP), y = Life.expectancy))
-
-```
 
 ##Correlation Matrix:
 ```{r}
@@ -121,103 +112,26 @@ cleandataMedian %>% ggplot() + geom_bar(aes(x = DualYears))
 summary(cleandataMedian$DualYears)
 
 ```
-Model with all non-redundant variables:
+Function for Individual T-Tests on each variable
 ```{r}
+# Create the Function
+tstt <- function(var1) {
+  return(t.test(var1~Life.expectancy, data = cleandataMedian,conf.level = .95,var.equal=FALSE))
+}
 
-model <- lm(Life.expectancy~Status + Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria +
-              HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling, cleandataMedian)
+```
+Fitting a preliminary model of non-redundant variables
+```{r prelim model}
+model <- lm(Life.expectancy~Status + Alcohol + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling, cleandataMedian)
+
 summary(model)
 plot(model)
-
-# Polio data with trend line
 cleandataMedian %>% ggplot(aes(Life.expectancy, Polio)) + geom_smooth() + geom_point()
 
 vif(model)
 ```
-
-Feature Selection Tools: Forward Selection
-```{r}
-library(leaps)
-reg.fwd=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
-                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
-                   data=cleandataMedian,method="forward",nvmax=12)
-
-summary(reg.fwd)$adjr2
-summary(reg.fwd)$rss
-summary(reg.fwd)$bic
-
-
-par(mfrow=c(1,3))
-bics<-summary(reg.fwd)$bic
-plot(1:12,bics,type="l",ylab="BIC",xlab="# of predictors")
-index<-which(bics==min(bics))
-points(index,bics[index],col="red",pch=10)
-
-adjr2<-summary(reg.fwd)$adjr2
-plot(1:12,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
-index<-which(adjr2==max(adjr2))
-points(index,adjr2[index],col="red",pch=10)
-
-rss<-summary(reg.fwd)$rss
-plot(1:12,rss,type="l",ylab="train RSS",xlab="# of predictors")
-index<-which(rss==min(rss))
-points(index,rss[index],col="red",pch=10)
-
-# Define Fit for Feature Selection from Sadler's Class
-fit = lm(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
-                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
-         data = cleandataMedian)
-summary(fit)
-
-# Forward Selection with OLS
-ols_step_forward_p(fit, penter = 0.05, details = TRUE)
-
-# Backward Selection with OLS
-ols_step_backward_p(fit, prem = 0.05, details = TRUE)
-
-# Stepwise Selection with OLS
-ols_step_both_p(fit, prem = 0.05, pent = 0.05, details = FALSE)
-```
-
-
-Splitting into Train/Test data:
-```{r}
-set.seed(1234)
-trainIndex<-createDataPartition(cleandataMedian$Life.expectancy,p=.5,list=F)  #p: proportion of data in train
-
-training<-cleandataMedian[trainIndex,]
-validate<-cleandataMedian[-trainIndex,]
-
-fwd.train=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
-                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
-                    data=training,method="forward",nvmax=12)
-
-#Creating a prediction function 
-predict.regsubsets =function (object , newdata ,id ,...){
-  form=as.formula (object$call [[2]])
-  mat=model.matrix(form ,newdata )
-  coefi=coef(object ,id=id)
-  xvars=names(coefi)
-  mat[,xvars]%*%coefi
-}
-
-valMSE<-c()
-#note my index, i, is to 12 since that is how many predictors I went up to during fwd selection
-for (i in 1:12){
-  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
-  valMSE[i]<-mean((log(validate$Life.expectancy)-predictions)^2)
-}
-par(mfrow=c(1,1))
-plot(1:12,sqrt(valMSE),type="l",xlab="# of predictors",ylab="test vs train RMSE",ylim=c(0,.1))
-index<-which(valMSE==min(valMSE))
-points(index,sqrt(valMSE[index]),col="red",pch=10)
-
-trainMSE<-summary(fwd.train)$rss/nrow(training)
-lines(1:12,sqrt(trainMSE),lty=3,col="blue")  
-```
-
 Feature Selection Tools: Penalized Regression
-```{r}
+```{r Penalized Regression}
 
 # Penalized Regression
 
@@ -226,7 +140,7 @@ fitControl<-trainControl(method="repeatedcv",number=5,repeats=1)
 
 #Fitting glmnet
 set.seed(1234)
-glmnet.fit<-train(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+glmnet.fit<-train(log(Life.expectancy)~Adult.Mortality + Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
                     Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
                   data=cleandataMedian,
                   method="glmnet",
@@ -278,4 +192,230 @@ cv.out=cv.glmnet(x,y,alpha=1)
 plot(cv.out)
 bestlambda<-cv.out$lambda.1se
 coef(cv.out,s=bestlambda)
+```
+Feature Selection Tools: Forward Selection
+```{r Forward Selection}
+library(leaps)
+reg.fwd=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                   data=cleandataMedian,method="forward",nvmax=12)
+
+summary(reg.fwd)$adjr2
+summary(reg.fwd)$rss
+summary(reg.fwd)$bic
+
+
+par(mfrow=c(1,3))
+bics<-summary(reg.fwd)$bic
+plot(1:12,bics,type="l",ylab="BIC",xlab="# of predictors")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.fwd)$adjr2
+plot(1:12,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.fwd)$rss
+plot(1:12,rss,type="l",ylab="train RSS",xlab="# of predictors")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+```
+
+Splitting into Train/Test data:
+```{r Train Test Data}
+set.seed(1234)
+trainIndex<-createDataPartition(cleandataMedian$Life.expectancy,p=.5,list=F)  #p: proportion of data in train
+
+training<-cleandataMedian[trainIndex,]
+validate<-cleandataMedian[-trainIndex,]
+
+fwd.train=regsubsets(log(Life.expectancy)~Alcohol + Measles + BMI + under.five.deaths + Polio + Total.expenditure +
+                    Diphtheria + HIV.AIDS + GDP + thinness..1.19.years + Income.composition.of.resources + Schooling,
+                    data=training,method="forward",nvmax=12)
+
+#Creating a prediction function 
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+valMSE<-c()
+#note my index, i, is to 12 since that is how many predictors I went up to during fwd selection
+for (i in 1:12){
+  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
+  valMSE[i]<-mean((log(validate$Life.expectancy)-predictions)^2)
+}
+par(mfrow=c(1,1))
+plot(1:12,sqrt(valMSE),type="l",xlab="# of predictors",ylab="test vs train RMSE",ylim=c(0.3,.9))
+index<-which(valMSE==min(valMSE))
+points(index,sqrt(valMSE[index]),col="red",pch=10)
+
+trainMSE<-summary(fwd.train)$rss/nrow(training)
+lines(1:12,sqrt(trainMSE),lty=3,col="blue")  
+```
+Adding Complexity to the Model
+```{r Transformation Exploration}
+# Transformations using Polio as a test
+
+transformations <- cleandataMedian
+
+# Transforming with Polynomial using a ^2
+transformations$polio2 <- transformations$Polio^2
+transformations %>% ggplot(aes(x=polio2, y=Life.expectancy)) +
+geom_point() + geom_smooth()
+
+# Transforming using Log
+transformations$logPolio <- log(transformations$Polio)
+
+transformations %>% ggplot(aes(x=logPolio, y=Life.expectancy)) +
+geom_point() + geom_smooth()
+
+# Testing if it's the same as logging inside the plot
+transformations %>% ggplot(aes(x=log(Polio), y=Life.expectancy)) +
+geom_point() + geom_smooth()
+```
+Creating plot functions
+```{r Creating Plot Functions}
+
+# Original Data plot
+plot_original <- function(var1) {
+  return(cleandataMedian %>% ggplot(aes(x=var1, 
+                                        y = Life.expectancy, 
+                                        color=Status)) + 
+           geom_point() + geom_smooth ()
+)
+}
+
+plot_original(transformations$Polio)
+
+# Creating function to plot variable as polynomials 
+
+plot_poly <- function(var1) {
+  return(cleandataMedian %>% ggplot(aes(x=var1^2, 
+                                      y = Life.expectancy,
+                                      color=Status)) + 
+         geom_point() + geom_smooth ()
+)
+}
+
+plot_poly(transformations$Polio)
+
+# Creating function to plot variables as logged
+plot_log <- function(var1) {
+  return(cleandataMedian %>% ggplot(aes(x=log(var1), 
+                                      y = Life.expectancy, 
+                                      color=Status)) + 
+         geom_point() + geom_smooth ()
+)
+}
+
+plot_log(transformations$Polio)
+```
+Putting each Variable into the Function
+```{r Variables into Function}
+# Infant Deaths Variable
+
+plot_original(cleandataMedian$infant.deaths)
+plot_poly(cleandataMedian$infant.deaths)
+plot_log(cleandataMedian$infant.deaths)
+
+# Alcohol Variable
+
+plot_original(cleandataMedian$Alcohol)
+plot_poly(cleandataMedian$Alcohol)
+plot_log(cleandataMedian$Alcohol)
+
+# Percentage of Expenditures Variable
+
+plot_original(cleandataMedian$percentage.expenditure)
+plot_poly(cleandataMedian$percentage.expenditure)
+plot_log(cleandataMedian$percentage.expenditure)
+
+# Measles Variable
+
+plot_original(cleandataMedian$Measles)
+plot_poly(cleandataMedian$Measles)
+plot_log(cleandataMedian$Measles)
+
+# BMI Variable
+
+plot_original(cleandataMedian$BMI)
+plot_poly(cleandataMedian$BMI)
+plot_log(cleandataMedian$BMI)
+
+# Under Five Deaths Variable
+
+plot_original(cleandataMedian$under.five.deaths)
+plot_poly(cleandataMedian$under.five.deaths)
+plot_log(cleandataMedian$under.five.deaths)
+
+# Total Expenditures Variable
+
+plot_original(cleandataMedian$Total.expenditure)
+plot_poly(cleandataMedian$Total.expenditure)
+plot_log(cleandataMedian$Total.expenditure)
+
+# Diphtheria Variable
+
+plot_original(cleandataMedian$Diphtheria)
+plot_poly(cleandataMedian$Diphtheria)
+plot_log(cleandataMedian$Diphtheria)
+
+# HIV AIDS Variable
+
+plot_original(cleandataMedian$HIV.AIDS)
+plot_poly(cleandataMedian$HIV.AIDS)
+plot_log(cleandataMedian$HIV.AIDS)
+
+# GDP Variable
+
+plot_original(cleandataMedian$GDP)
+plot_poly(cleandataMedian$GDP)
+plot_log(cleandataMedian$GDP)
+
+# Thinness 10-19 Years Variable
+
+plot_original(cleandataMedian$thinness..1.19.years)
+plot_poly(cleandataMedian$thinness..1.19.years)
+plot_log(cleandataMedian$thinness..1.19.years)
+
+# Thinness 5-9 Variable
+
+plot_original(cleandataMedian$thinness.5.9.years)
+plot_poly(cleandataMedian$thinness.5.9.years)
+plot_log(cleandataMedian$thinness.5.9.years)
+
+# Income Composition of Resources Variable
+
+plot_original(cleandataMedian$Income.composition.of.resources)
+plot_poly(cleandataMedian$Income.composition.of.resources)
+plot_log(cleandataMedian$Income.composition.of.resources)
+
+# Schooling Variable
+
+plot_original(cleandataMedian$Schooling)
+plot_poly(cleandataMedian$Schooling)
+plot_log(cleandataMedian$Schooling)
+```
+
+Fitting a complex model with polynomials, logged variables, and interaction
+
+```{r Complex Model}
+poly2logmodel <- lm(Life.expectancy~ poly(Polio,2)+
+                      poly(Alcohol,2)+
+                      poly(BMI,2)+
+                      poly(Diphtheria,2)+
+                      poly(Income.composition.of.resources, 2)+
+                      poly(Schooling,2)+
+                      log(HIV.AIDS) +
+                      log(GDP) +
+                      log(thinness..1.19.years) +
+                      Measles +
+                      Total.expenditure, cleandataMedian)
+
+plot(poly2logmodel)
 ```
