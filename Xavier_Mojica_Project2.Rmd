@@ -123,7 +123,7 @@ plot(eightVar)
 
 ```
 
-#Bests MLR 
+#Best MLR 
 ```{r}
 set.seed(2323)
 lessvar = lm(Life.expectancy~HIV.AIDS+Schooling+BMI+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = training)
@@ -199,13 +199,25 @@ plot(knnfit1)
 
 updateval = validate[,c("Life.expectancy", "Adult.Mortality", "infant.deaths", "Alcohol", "percentage.expenditure", "Measles", "BMI", "under.five.deaths", "Polio", "Total.expenditure", "Diphtheria", "HIV.AIDS", "thinness..1.19.years","thinness.5.9.years",  "Income.composition.of.resources", "Schooling", "logGDP")]
 
-prediction = predict(knnfit1, newdata = validate)
+
+prediction = predict(knnfit1, newdata = updateval)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, Predicted = prediction)
+
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+
+MSPE$SquaredResidual = MSPE$Residual^2
+
+sqrt(mean(MSPE$SquaredResidual))
+
+#prediction = predict(knnfit1, newdata = validate)
 #cf = confusionMatrix(prediction, updateval$Life.expectancy)
 #cf
 #print(cf)
 
 ```
-```
+
+
 
 #World Map, Color plotting 
 ```{r}
@@ -233,16 +245,33 @@ library(tidyverse)
 dataforcolmap = training
 #but first renaming column Country in dataforcolmap 
 colnames(dataforcolmap)[1] = "region"
+
+
+
+#Renaming United States of America and Boliva (Republic...) with USA and Boliva and other countries as follows 
+dataforcolmap$region[dataforcolmap$region == "United States of America"] = "USA"
+dataforcolmap$region[dataforcolmap$region == "Bolivia (Plurinational State of)"] = "Bolivia"
+dataforcolmap$region[dataforcolmap$region == "Venezuela (Bolivarian Republic of)"] = "Venezuela"
+dataforcolmap$region[dataforcolmap$region == "Republic of Korea"] = "South Korea"
+dataforcolmap$region[dataforcolmap$region == "The former Yugoslav republic of Macedonia"] = "North Macedonia"
+dataforcolmap$region[dataforcolmap$region == "Republic of Moldova"] = "Moldova"
+dataforcolmap$region[dataforcolmap$region == "Russian Federation"] = "Russia"
+dataforcolmap$region[dataforcolmap$region == "Micronesia (Federated States of)"] = "Micronesia"
+dataforcolmap$region[dataforcolmap$region == "Lao People's Democratic Republic"] = "Laos"
+dataforcolmap$region[dataforcolmap$region == "Iran (Islamic Republic of)"] = "Iran"
+dataforcolmap$region[dataforcolmap$region == "Democratic People's Republic of Korea"] = "North Korea"
+
+
 view(dataforcolmap)
 
 
 #getting map data for plotting 
 mapdata = map_data("world")
-view(mapdata)
+#view(mapdata)
 
 #joining map data with dataforcolmap 
 mapdata = left_join(mapdata,dataforcolmap, by = "region")
-view(mapdata)
+#view(mapdata)
 
 #filtering out NAs for life expectancy , status, Income.composition.of.resources
 #Life Exp
@@ -275,6 +304,8 @@ mapIncome
 
 ```
 
+
+#World Map with Best Model 
 ```{}
 
 
