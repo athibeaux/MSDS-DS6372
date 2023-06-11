@@ -108,11 +108,19 @@ summary(training$DualYears)
 ```
 Full Model
 ```{r}
-full.model <- lm(Life.expectancy~Status + Adult.Mortality + infant.deaths + 
-                   Alcohol + percentage.expenditure + Measles + BMI + 
-                   under.five.deaths + Polio + Total.expenditure + 
-                   Diphtheria + HIV.AIDS + log(GDP) + 
-                   thinness..1.19.years + thinness.5.9.years +
+KitchenSink <- lm(Life.expectancy~Year + Status + Adult.Mortality +
+                  infant.deaths + Alcohol + percentage.expenditure +
+                  Measles + BMI + under.five.deaths + Polio + 
+                  Total.expenditure + Diphtheria + HIV.AIDS + log(GDP) + 
+                    thinness..1.19.years + thinness.5.9.years +
+                    Income.composition.of.resources + Schooling, training)
+plot(KitchenSink)
+vif(KitchenSink)
+
+full.model <- lm(Life.expectancy~ Status + Alcohol + percentage.expenditure + 
+                   Measles + BMI + under.five.deaths + Polio + 
+                   Total.expenditure + Diphtheria + HIV.AIDS + log(GDP) + 
+                   thinness..1.19.years +
                    Income.composition.of.resources + Schooling, training)
 
 summary(full.model)
@@ -355,6 +363,10 @@ Adding Complexity to the Model
 
 transformations <- training
 
+# Original
+training %>% ggplot(aes(x=Polio, y = Life.expectancy)) + 
+           geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+
 # Transforming with Polynomial using a ^2
 transformations$polio2 <- transformations$Polio^2
 transformations %>% ggplot(aes(x=polio2, y=Life.expectancy)) +
@@ -375,6 +387,12 @@ Creating plot functions
 
 # Original Data plot
 plot_original <- function(var1) {
+  return(training %>% ggplot(aes(x=var1, y = Life.expectancy)) + 
+           geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+)
+}
+
+plot_original_interaction <- function(var1) {
   return(training %>% ggplot(aes(x=var1, 
                                         y = Life.expectancy, 
                                         color=Status)) + 
@@ -415,12 +433,15 @@ Putting each Variable into the Function
 # Infant Deaths Variable
 
 plot_original(training$infant.deaths) + xlab("Infant Deaths per 1000")
+plot_original_interaction(training$infant.deaths) + xlab("Infant Deaths per 1000")
 plot_poly(training$infant.deaths) + xlab("Infant Deaths per 1000")
 plot_log(training$infant.deaths) + xlab("Infant Deaths per 1000")
 
 # Alcohol Variable
 
 plot_original(training$Alcohol) + 
+  xlab("Alcohol Consumption per capita in Litres of pure alcohol")
+plot_original_interaction(training$Alcohol) + 
   xlab("Alcohol Consumption per capita in Litres of pure alcohol")
 plot_poly(training$Alcohol) + 
   xlab("Alcohol Consumption per capita in Litres of pure alcohol")
@@ -431,6 +452,8 @@ plot_log(training$Alcohol) +
 
 plot_original(training$percentage.expenditure) + 
   xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
+plot_original_interaction(training$percentage.expenditure) + 
+  xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
 plot_poly(training$percentage.expenditure) + 
   xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
 plot_log(training$percentage.expenditure) + 
@@ -439,18 +462,22 @@ plot_log(training$percentage.expenditure) +
 # Measles Variable
 
 plot_original(training$Measles) + xlab("Reported Measles cases per 1000")
+plot_original_interaction(training$Measles) + xlab("Reported Measles cases per 1000")
 plot_poly(training$Measles)+ xlab("Reported Measles cases per 1000")
 plot_log(training$Measles)+ xlab("Reported Measles cases per 1000")
 
 # BMI Variable
 
 plot_original(training$BMI) + xlab("Average Body Mass Index of population")
+plot_original_interaction(training$BMI) + xlab("Average Body Mass Index of population")
 plot_poly(training$BMI)+ xlab("Average Body Mass Index of population")
 plot_log(training$BMI)+ xlab("Average Body Mass Index of population")
 
 # Under Five Deaths Variable
 
 plot_original(training$under.five.deaths) + 
+  xlab("Under age 5 deaths per 1000")
+plot_original_interaction(training$under.five.deaths) + 
   xlab("Under age 5 deaths per 1000")
 plot_poly(training$under.five.deaths)+ 
   xlab("Under age 5 deaths per 1000")
@@ -461,6 +488,8 @@ plot_log(training$under.five.deaths)+
 
 plot_original(training$Total.expenditure) + 
   xlab("Percentage of total government expenditures on health")
+plot_original_interaction(training$Total.expenditure) + 
+  xlab("Percentage of total government expenditures on health")
 plot_poly(training$Total.expenditure)+ 
   xlab("Percentage of total government expenditures on health")
 plot_log(training$Total.expenditure)+ 
@@ -470,6 +499,8 @@ plot_log(training$Total.expenditure)+
 
 plot_original(training$Diphtheria) + 
   xlab("DPT3 Immunization Coverage among 1-year-olds")
+plot_original_interaction(training$Diphtheria) + 
+  xlab("DPT3 Immunization Coverage among 1-year-olds")
 plot_poly(training$Diphtheria)+ 
   xlab("DPT3 Immunization Coverage among 1-year-olds")
 plot_log(training$Diphtheria)+ 
@@ -478,18 +509,22 @@ plot_log(training$Diphtheria)+
 # HIV AIDS Variable
 
 plot_original(training$HIV.AIDS) + xlab ("HIV/AIDS Deaths per 1000 live births")
+plot_original_interaction(training$HIV.AIDS) + xlab ("HIV/AIDS Deaths per 1000 live births")
 plot_poly(training$HIV.AIDS)+ xlab ("HIV/AIDS Deaths per 1000 live births")
 plot_log(training$HIV.AIDS)+ xlab ("HIV/AIDS Deaths per 1000 live births")
 
 # GDP Variable
 
 plot_original(training$GDP) + xlab("Gross Domestic Product per capita in USD")
+plot_original_interaction(training$GDP) + xlab("Gross Domestic Product per capita in USD")
 plot_poly(training$GDP)+ xlab("Gross Domestic Product per capita in USD")
 plot_log(training$GDP)+ xlab("Gross Domestic Product per capita in USD")
 
 # Thinness 10-19 Years Variable
 
 plot_original(training$thinness..1.19.years) + 
+  xlab("Prevalence of thinness among children ages 10 to 19")
+plot_original_interaction(training$thinness..1.19.years) + 
   xlab("Prevalence of thinness among children ages 10 to 19")
 plot_poly(training$thinness..1.19.years)+ 
   xlab("Prevalence of thinness among children ages 10 to 19")
@@ -500,6 +535,8 @@ plot_log(training$thinness..1.19.years)+
 
 plot_original(training$thinness.5.9.years)+ 
   xlab("Prevalence of thinness among children ages 5 to 9")
+plot_original_interaction(training$thinness.5.9.years)+ 
+  xlab("Prevalence of thinness among children ages 5 to 9")
 plot_poly(training$thinness.5.9.years)+ 
   xlab("Prevalence of thinness among children ages 5 to 9")
 plot_log(training$thinness.5.9.years)+ 
@@ -509,6 +546,8 @@ plot_log(training$thinness.5.9.years)+
 
 plot_original(training$Income.composition.of.resources) + 
   xlab("Human Development Index in terms of income composition of resources")
+plot_original_interaction(training$Income.composition.of.resources) + 
+  xlab("Human Development Index in terms of income composition of resources")
 plot_poly(training$Income.composition.of.resources)+ 
   xlab("Human Development Index in terms of income composition of resources")
 plot_log(training$Income.composition.of.resources)+ 
@@ -517,6 +556,7 @@ plot_log(training$Income.composition.of.resources)+
 # Schooling Variable
 
 plot_original(training$Schooling) + xlab("Years in School")
+plot_original_interaction(training$Schooling) + xlab("Years in School")
 plot_poly(training$Schooling)+ xlab("Years in School")
 plot_log(training$Schooling)+ xlab("Years in School")
 ```
@@ -524,7 +564,7 @@ plot_log(training$Schooling)+ xlab("Years in School")
 Original Model for comparison
 ```{r Original Model}
 original.model <- lm(Life.expectancy~ Polio + Alcohol + BMI +
-                       Diphtheria+Schooling + HIV.AIDS + GDP +
+                       Diphtheria+ Schooling + HIV.AIDS + GDP +
                        thinness..1.19.years + Measles + Total.expenditure + 
                        Income.composition.of.resources, training)
 
@@ -642,7 +682,6 @@ Predictions
 ```{r Predictions}
 # RMSE of Full Model
 full.model_Preds = predict(full.model, newdata = validate)
-as.data.frame(full.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = full.model_Preds)
@@ -652,7 +691,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Preliminary Model
 prelim.model_Preds = predict(prelim.model, newdata = validate)
-as.data.frame(prelim.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = prelim.model_Preds)
@@ -662,7 +700,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Penalized Regression Model
 glmnet.fit.model_Preds = predict(glmnet.fit.model, newdata = validate)
-as.data.frame(glmnet.fit.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = glmnet.fit.model_Preds)
@@ -672,7 +709,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Forward Selection Model
 fwd.select.model_Preds = predict(fwd.select.model, newdata = validate)
-as.data.frame(fwd.select.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = fwd.select.model_Preds)
@@ -682,7 +718,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Backward Selection Model
 bck.select.model_Preds = predict(bck.select.model, newdata = validate)
-as.data.frame(bck.select.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = bck.select.model_Preds)
@@ -690,9 +725,8 @@ MSPE$Residual = MSPE$Observed - MSPE$Predicted
 MSPE$SquaredResidual = MSPE$Residual^2
 sqrt(mean(MSPE$SquaredResidual))
 
-# RMSE of Backward Selection Model
+# RMSE of Stepwise Selection Model
 sw.select.model_Preds = predict(sw.select.model, newdata = validate)
-as.data.frame(sw.select.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = sw.select.model_Preds)
@@ -702,7 +736,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Original Model
 original.model_Preds = predict(original.model, newdata = validate)
-as.data.frame(original.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = original.model_Preds)
@@ -712,7 +745,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Poly2Log Model
 poly2logmodel_Preds = predict(poly2logmodel, newdata = validate)
-as.data.frame(poly2logmodel_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = poly2logmodel_Preds)
@@ -723,16 +755,15 @@ sqrt(mean(MSPE$SquaredResidual))
 # RMSE of Poly7Log Model
 
 poly7logmodel_Preds = predict(poly7logmodel, newdata = validate)
-as.data.frame(poly7logmodel_Preds)
 
-MSPE = data.frame(Observed = validate$Life.expectancy, Predicted = poly7logmodel_Preds)
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = poly7logmodel_Preds)
 MSPE$Residual = MSPE$Observed - MSPE$Predicted
 MSPE$SquaredResidual = MSPE$Residual^2
 sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Original with Interaction Model
 interaction.model_Preds = predict(interaction.model, newdata = validate)
-as.data.frame(original.model_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = interaction.model_Preds)
@@ -742,7 +773,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Poly2Log Model with interactions
 poly2log.interaction.model_Preds = predict(poly2log.interaction.model, newdata = validate)
-as.data.frame(poly2logmodel_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = poly2log.interaction.model_Preds)
@@ -753,7 +783,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Poly7Log Model with interactions
 poly7log.interaction.model_Preds = predict(poly7log.interaction.model, newdata = validate)
-as.data.frame(poly2logmodel_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = poly7log.interaction.model_Preds)
@@ -763,7 +792,6 @@ sqrt(mean(MSPE$SquaredResidual))
 
 # RMSE of Poly7Log Model with Categorical variable Status added (not as interaction)
 status.poly7logmodel_Preds = predict(status.poly7logmodel, newdata = validate)
-as.data.frame(poly2logmodel_Preds)
 
 MSPE = data.frame(Observed = validate$Life.expectancy, 
                   Predicted = status.poly7logmodel_Preds)

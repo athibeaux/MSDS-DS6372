@@ -1,0 +1,961 @@
+---
+title: "Proj1"
+author: "Thibeaux"
+date: "2023-06-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+```{r}
+library(GGally)
+library(boot)
+library(ggplot2)
+library(tidyverse)
+library(lmboot)
+library(lattice)
+library(caret)
+library(naniar)
+library(utils)
+library(stats)
+library(corrplot)
+library(ISLR)
+library(car)
+library(olsrr)
+library(data.table)
+library(GGally)
+```
+
+## Reading in Dataset
+```{r}
+life = read.csv('https://github.com/athibeaux/MSDS-DS6372/raw/main/Life_Expectancy.csv')
+```
+
+```{r}
+ggplot(data = life) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+```
+Upon looking at the graph of the original data set, it appears that there needs to be a log transformation on the X or the GDP as we are interested in seeing the relation between Life Expenctancy and GDP. 
+
+## Checking Data Types
+```{r}
+str(life)
+vis_miss(life)
+dim(life)
+#View(life)
+#sum(is.na(life))
+```
+
+# Imputing using Median
+```{r}
+#GDP 15% [17]  keep GDP to have it Imputed even if quite high percentage, assuming it is crucial to predicting Life.expectancy as richer countries have better health access/Medicine and tech. The numbers appear to be GDP per capita which helps as it addresses GDP/Population. GDP per Capita and Population would be too closely related and prob attribute to covariance.  
+#Adjusting text angle to vis_miss
+imputeMedian= preProcess(life[,-c(1:4,9)],method="medianImpute") #predictors 1:4, 9 and response is 4
+cleandataMedian = predict(imputeMedian,newdata=life)
+dim(cleandataMedian)
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+#Literature says that over 10% missing data can contribute to bias 
+#HepatitsB [9] at 19% , Population 22% [18]. 
+#Removing columns 9 and 18
+cleandataMedian = cleandataMedian[,-c(18,9)]
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+#removing last NA
+cleandataMedian = na.omit(cleandataMedian)
+vis_miss(cleandataMedian) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
+
+```
+Creating Variable of Logged GDP Attribute
+```{r}
+ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+
+#Converting GDP to Log 
+cleandataMedian$logGDP = log(cleandataMedian$GDP)
+#converting Life.expectancy to log 
+cleandataMedian$logLife.expectancy = log(cleandataMedian$Life.expectancy)
+
+#Log transformation on GDP 
+ggplot(data = cleandataMedian) + geom_point(mapping = aes(x = logGDP, y = logLife.expectancy))
+
+```
+Splitting the data
+```{r}
+set.seed(1234)
+trainIndex<-createDataPartition(cleandataMedian$Life.expectancy,p=.8,list=F)  #p: proportion of data in train
+
+training<-cleandataMedian[trainIndex,]
+validate<-cleandataMedian[-trainIndex,]
+```
+
+Before and after log transforming GDP, with cleandataMedian:
+```{r}
+ggplot(data = training) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
+
+#Log transformation on GDP 
+ggplot(data = training) + geom_point(mapping = aes(x = log(GDP), y = Life.expectancy))
+
+```
+# EDA
+
+## World Map, Color plotting 
+```{r}
+#Creating the World 
+#library(ggplot2)
+#library(tidyverse)
+#library(ggthemes)
+
+#world_map = map_data("world") %>% filter(! long > 180)
+
+#countries = world_map %>% distinct(region) %>% rowid_to_column()
+
+#countries %>% ggplot(aes(fill = rowid, map_id = region)) + geom_map(map = world_map) + expand_limits(x = world_map$long, y = world_map$lat) + coord_map("moll") +theme_map()
+
+
+```
+
+## Color world plotting with full data
+```{r}
+library(ggplot2)
+library(tidyverse)
+
+#rename training for the map
+dataforcolmap = training
+#but first renaming column Country in dataforcolmap 
+colnames(dataforcolmap)[1] = "region"
+
+
+
+#Renaming United States of America and Boliva (Republic...) with USA and Boliva and other countries as follows 
+dataforcolmap$region[dataforcolmap$region == "United States of America"] = "USA"
+dataforcolmap$region[dataforcolmap$region == "Bolivia (Plurinational State of)"] = "Bolivia"
+dataforcolmap$region[dataforcolmap$region == "Venezuela (Bolivarian Republic of)"] = "Venezuela"
+dataforcolmap$region[dataforcolmap$region == "Republic of Korea"] = "South Korea"
+dataforcolmap$region[dataforcolmap$region == "The former Yugoslav republic of Macedonia"] = "North Macedonia"
+dataforcolmap$region[dataforcolmap$region == "Republic of Moldova"] = "Moldova"
+dataforcolmap$region[dataforcolmap$region == "Russian Federation"] = "Russia"
+dataforcolmap$region[dataforcolmap$region == "Micronesia (Federated States of)"] = "Micronesia"
+dataforcolmap$region[dataforcolmap$region == "Lao People's Democratic Republic"] = "Laos"
+dataforcolmap$region[dataforcolmap$region == "Iran (Islamic Republic of)"] = "Iran"
+dataforcolmap$region[dataforcolmap$region == "Democratic People's Republic of Korea"] = "North Korea"
+
+
+view(dataforcolmap)
+
+
+#getting map data for plotting 
+mapdata = map_data("world")
+#view(mapdata)
+
+#joining map data with dataforcolmap 
+mapdata = left_join(mapdata,dataforcolmap, by = "region")
+#view(mapdata)
+
+#filtering out NAs for life expectancy , status, Income.composition.of.resources
+#Life Exp
+mapdata1 = mapdata %>% filter(!is.na(mapdata$Life.expectancy))
+
+#Status 
+mapdata2 = mapdata %>% filter(!is.na(mapdata$Status))
+
+#Income
+mapdata3 = mapdata %>% filter(!is.na(mapdata$Income.composition.of.resources))
+
+
+#mapping mapdata1 for Life Exp 
+
+map1 = ggplot(mapdata1, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Life.expectancy), color = "black")+ theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Life Expectancy per Country") + scale_fill_gradient(low = "red", high = "yellow") + guides(fill=guide_legend(title="Life Expectancy"))
+map1
+
+
+
+#mapping mapdata2 for Status 
+
+mapStatus = ggplot(mapdata2, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Status, col = "orange"), color = "black") + theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Country's Status: Developed v. Developing") 
+mapStatus
+
+
+#mapping mapdata3 for Income Composition of Resources 
+
+mapIncome = ggplot(mapdata3, aes(x = long, y = lat, group = group)) + geom_polygon(aes(fill = Income.composition.of.resources), color = "black")+ theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title.y = element_blank(), axis.title.x = element_blank()) + ggtitle("Income Composition of Resources per Country") + scale_fill_gradient(low = "red", high = "yellow")+ guides(fill=guide_legend(title="Income Composition of Resources"))
+mapIncome
+
+```
+
+## Correlation Matrix:
+```{r}
+cor <- cor(training[,c(4,5:20)])
+corrplot(cor, method = "square",  tl.srt = 50, tl.col = "black", tl.cex = 0.6, title = "Correlation of Variables", mar=c(0,0,1,0))
+```
+GGPairs:
+```{r}
+#commented out for knitting
+#ggpairs(training[,4:20])
+```
+# Multivariable Plots on Full Data
+```{r}
+# Libraries Used: ISLR, data.table, GGally, ggplot2
+
+ggpairs(training[,4:8], lower = list(continuous = wrap("points", color = "red", alpha = 0.5), combo = wrap("box", color = "orange", alpha = 0.3), discrete = wrap("facetbar", color = "yellow", alpha = 0.3) ),diag = list(continuous = wrap("densityDiag",  color = "blue", alpha = 0.5)))
+
+ggpairs(training[,c(4,9:12)], lower = list(continuous = wrap("points", color = "red", alpha = 0.5), combo = wrap("box", color = "orange", alpha = 0.3), discrete = wrap("facetbar", color = "yellow", alpha = 0.3) ),diag = list(continuous = wrap("densityDiag",  color = "blue", alpha = 0.5)))
+
+ggpairs(training[,c(4,13:16)], lower = list(continuous = wrap("points", color = "red", alpha = 0.5), combo = wrap("box", color = "orange", alpha = 0.3), discrete = wrap("facetbar", color = "yellow", alpha = 0.3) ),diag = list(continuous = wrap("densityDiag",  color = "blue", alpha = 0.5)))
+
+ggpairs(training[,c(4,17:20)], lower = list(continuous = wrap("points", color = "red", alpha = 0.5), combo = wrap("box", color = "orange", alpha = 0.3), discrete = wrap("facetbar", color = "yellow", alpha = 0.3) ),diag = list(continuous = wrap("densityDiag",  color = "blue", alpha = 0.5)))
+#ggpairs(cleandataMedian[,5:22], upper = list(continuous = wrap("cor", size = 4.75, align_percent = 1)))
+#ggscatmat(cleandataMedian, columns = 4:10)
+```
+
+Full Model
+```{r}
+KitchenSink <- lm(Life.expectancy~Year + Status + Adult.Mortality +
+                  infant.deaths + Alcohol + percentage.expenditure +
+                  Measles + BMI + under.five.deaths + Polio + 
+                  Total.expenditure + Diphtheria + HIV.AIDS + log(GDP) + 
+                    thinness..1.19.years + thinness.5.9.years +
+                    Income.composition.of.resources + Schooling, training)
+plot(KitchenSink)
+vif(KitchenSink)
+
+full.model <- lm(Life.expectancy~ Status + Alcohol + percentage.expenditure + 
+                   Measles + BMI + under.five.deaths + Polio + 
+                   Total.expenditure + Diphtheria + HIV.AIDS + log(GDP) + 
+                   thinness..1.19.years +
+                   Income.composition.of.resources + Schooling, training)
+
+summary(full.model)
+plot(full.model)
+vif(full.model)
+```
+# Residuals Custom model 
+```{r}
+set.seed(2345)
+eightVar = lm(Life.expectancy~HIV.AIDS+Schooling+Alcohol+BMI+Polio+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = training)
+summary(eightVar)
+confint(eightVar)
+
+#Visuals for Residuals
+plot(eightVar)
+
+```
+
+#Best final MLR 
+```{r}
+set.seed(2323)
+lessvar = lm(Life.expectancy~HIV.AIDS+Schooling+BMI+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = training)
+summary(lessvar)
+confint(lessvar)
+
+#Visuals for Residuals
+plot(lessvar)
+```
+
+Feature Selection Tools: Penalized Regression
+```{r Penalized Regression}
+
+# Penalized Regression
+
+#Setting kfold parameters
+fitControl<-trainControl(method="repeatedcv",number=5,repeats=1) 
+
+#Fitting glmnet
+set.seed(1234)
+glmnet.fit<-train(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling,
+                  data=training,
+                  method="glmnet",
+                  trControl=fitControl
+)
+
+glmnet.fit
+plot(glmnet.fit)
+
+
+#Investigating coefficients
+opt.pen<-glmnet.fit$finalModel$lambdaOpt #penalty term
+coef(glmnet.fit$finalModel,opt.pen)
+
+
+glmnet.fit.model <-lm(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years +
+              Income.composition.of.resources + Schooling,
+          data=training)
+
+plot(glmnet.fit.model)
+
+#Lets force a LASSO model and add complexity
+set.seed(1234)
+glmnet.fit2<-train(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + poly(Polio,2) + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling,
+                  data=training,
+                  method="glmnet",
+                  trControl=fitControl,
+                  tuneGrid=expand.grid(data.frame(alpha=1,lambda=seq(0,.05,.001)))
+)
+
+glmnet.fit2
+plot(glmnet.fit2)
+
+opt.pen<-glmnet.fit2$finalModel$lambdaOpt   #penalty term
+coef(glmnet.fit2$finalModel,opt.pen)
+
+# Different way to do GLMNET
+
+x=model.matrix(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling,
+               training)[,-1]
+y=log(training$Life.expectancy)
+
+library(glmnet)
+set.seed(1234)
+
+grid=10^seq(10,-2, length =100)
+lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
+
+cv.out=cv.glmnet(x,y,alpha=1)
+plot(cv.out)
+bestlambda<-cv.out$lambda.1se
+coef(cv.out,s=bestlambda)
+```
+Feature Selection Tools: Forward Selection
+```{r Forward Selection with olsrr}
+fwd.selection = lm(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling, data = training)
+
+# Forward
+ols_step_forward_p(fwd.selection, penter = 0.05, details = TRUE)
+
+# Forward Selection Chosen Model
+
+fwd.select.model <- lm(Life.expectancy~ Income.composition.of.resources + Schooling +
+                         HIV.AIDS + Diphtheria +
+                         BMI + log(GDP) + Polio +
+                         percentage.expenditure + thinness..1.19.years + Total.expenditure, training)
+
+plot(fwd.select.model)
+```
+
+```{r Forward Selection with Leaps}
+library(leaps)
+reg.fwd=regsubsets(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling,
+                   data=training,method="forward",nvmax=15)
+
+summary(reg.fwd)$adjr2
+summary(reg.fwd)$rss
+summary(reg.fwd)$bic
+
+
+par(mfrow=c(1,3))
+bics<-summary(reg.fwd)$bic
+plot(1:15,bics,type="l",ylab="BIC",xlab="# of predictors")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.fwd)$adjr2
+plot(1:15,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.fwd)$rss
+plot(1:15,rss,type="l",ylab="train RSS",xlab="# of predictors")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+
+
+```
+Backward Selection
+```{r Backward Selection with olsrr}
+bck.selection = lm(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling, data = training)
+
+# Backward
+ols_step_backward_p(bck.selection, prem = 0.05, details = TRUE)
+
+# Backward Selection Chosen Model
+bck.select.model <- lm(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + 
+              Income.composition.of.resources + Schooling, data = training)
+
+plot(bck.select.model)
+```
+
+Stepwise Selection
+```{r Stepwise Selection with olsrr}
+sw.selection = lm(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling, data = training)
+summary(sw.selection)
+
+# Stepwise
+ols_step_both_p(sw.selection, prem = 0.05, pent = 0.05, details = FALSE)
+
+# Stepwise Selection Chosen Model
+sw.select.model = lm(Life.expectancy~ percentage.expenditure + 
+                       BMI + Polio + Diphtheria + HIV.AIDS + 
+                       log(GDP) + thinness..1.19.years +
+                       Income.composition.of.resources + Schooling, data = training)
+
+plot(sw.select.model)
+```
+
+Forward Selection Validation
+```{r Train Test Data}
+
+fwd.train=regsubsets(Life.expectancy~infant.deaths + Alcohol + 
+              percentage.expenditure + Measles + BMI + 
+              under.five.deaths + Polio + Total.expenditure + 
+              Diphtheria + HIV.AIDS + log(GDP) + 
+              thinness..1.19.years + thinness.5.9.years +
+              Income.composition.of.resources + Schooling,
+                    data=training,method="forward",nvmax=15)
+
+#Creating a prediction function 
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+valMSE<-c()
+#note my index, i, is to 15 since that is how many predictors I went up to during fwd selection
+for (i in 1:15){
+  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
+  valMSE[i]<-mean((validate$Life.expectancy-predictions)^2)
+}
+par(mfrow=c(1,1))
+plot(1:15,sqrt(valMSE),type="l",xlab="# of predictors",
+     ylab="test vs train RMSE")
+index<-which(valMSE==min(valMSE))
+points(index,sqrt(valMSE[index]),col="red",pch=10)
+
+trainMSE<-summary(fwd.train)$rss/nrow(training)
+lines(1:15,sqrt(trainMSE),lty=3,col="blue")  
+```
+# Forward, Backward, Stepwise Selection with AIC
+```{r}
+library(MASS)
+#Full Model 
+set.seed(1246)
+fitFull = lm(Life.expectancy~Adult.Mortality + 
+     infant.deaths + Alcohol + percentage.expenditure + Measles + 
+     BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP,training)
+
+stepup = stepAIC(fitFull, direction = "forward", steps = 2000)
+
+stepdown= stepAIC(fitFull, direction = "backward", steps = 2000)
+
+stepboth = stepAIC(fitFull, direction = "both", steps = 2000)
+
+#summary for each model 
+up = summary(stepup)
+up
+down = summary(stepdown)
+down
+both = summary(stepboth)
+both
+
+fitFull
+
+olsrr::ols_step_forward_aic(fitFull)
+```
+Adding Complexity to the Model
+```{r Transformation Exploration}
+# Transformations using Polio as a test
+
+transformations <- training
+
+# Original
+training %>% ggplot(aes(x=Polio, y = Life.expectancy)) + 
+           geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+
+# Transforming with Polynomial using a ^2
+transformations$polio2 <- transformations$Polio^2
+transformations %>% ggplot(aes(x=polio2, y=Life.expectancy)) +
+geom_point() + geom_smooth()
+
+# Transforming using Log
+transformations$logPolio <- log(transformations$Polio)
+
+transformations %>% ggplot(aes(x=logPolio, y=Life.expectancy)) +
+geom_point() + geom_smooth()
+
+# Testing if it's the same as logging inside the plot
+transformations %>% ggplot(aes(x=log(Polio), y=Life.expectancy)) +
+geom_point() + geom_smooth()
+```
+Creating plot functions
+```{r Creating Plot Functions}
+
+# Original Data plot
+plot_original <- function(var1) {
+  return(training %>% ggplot(aes(x=var1, y = Life.expectancy)) + 
+           geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+)
+}
+
+plot_original_interaction <- function(var1) {
+  return(training %>% ggplot(aes(x=var1, 
+                                        y = Life.expectancy, 
+                                        color=Status)) + 
+           geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+)
+}
+
+plot_original(training$Polio)+ 
+  xlab("Polio Immunization Coverage among 1-year-olds")
+
+# Creating function to plot variable as polynomials 
+
+plot_poly <- function(var1) {
+  return(training %>% ggplot(aes(x=var1^2, 
+                                      y = Life.expectancy,
+                                      color=Status)) + 
+         geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+)
+}
+
+plot_poly(training$Polio)+ 
+  xlab("Polio Immunization Coverage among 1-year-olds")
+
+# Creating function to plot variables as logged
+plot_log <- function(var1) {
+  return(training %>% ggplot(aes(x=log(var1), 
+                                      y = Life.expectancy, 
+                                      color=Status)) + 
+         geom_point() + geom_smooth () + ylab("Life Expectancy in Age")
+)
+}
+
+plot_log(training$Polio) + 
+  xlab("Polio Immunization Coverage among 1-year-olds")
+```
+Putting each Variable into the Function
+```{r Variables into Function}
+# Infant Deaths Variable
+
+plot_original(training$infant.deaths) + xlab("Infant Deaths per 1000")
+plot_original_interaction(training$infant.deaths) + xlab("Infant Deaths per 1000")
+plot_poly(training$infant.deaths) + xlab("Infant Deaths per 1000")
+plot_log(training$infant.deaths) + xlab("Infant Deaths per 1000")
+
+# Alcohol Variable
+
+plot_original(training$Alcohol) + 
+  xlab("Alcohol Consumption per capita in Litres of pure alcohol")
+plot_original_interaction(training$Alcohol) + 
+  xlab("Alcohol Consumption per capita in Litres of pure alcohol")
+plot_poly(training$Alcohol) + 
+  xlab("Alcohol Consumption per capita in Litres of pure alcohol")
+plot_log(training$Alcohol) + 
+  xlab("Alcohol Consumption per capita in Litres of pure alcohol")
+
+# Percentage of Expenditures Variable
+
+plot_original(training$percentage.expenditure) + 
+  xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
+plot_original_interaction(training$percentage.expenditure) + 
+  xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
+plot_poly(training$percentage.expenditure) + 
+  xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
+plot_log(training$percentage.expenditure) + 
+  xlab("Expenditure on health as a percentage of Gross Domestic Product per capita")
+
+# Measles Variable
+
+plot_original(training$Measles) + xlab("Reported Measles cases per 1000")
+plot_original_interaction(training$Measles) + xlab("Reported Measles cases per 1000")
+plot_poly(training$Measles)+ xlab("Reported Measles cases per 1000")
+plot_log(training$Measles)+ xlab("Reported Measles cases per 1000")
+
+# BMI Variable
+
+plot_original(training$BMI) + xlab("Average Body Mass Index of population")
+plot_original_interaction(training$BMI) + xlab("Average Body Mass Index of population")
+plot_poly(training$BMI)+ xlab("Average Body Mass Index of population")
+plot_log(training$BMI)+ xlab("Average Body Mass Index of population")
+
+# Under Five Deaths Variable
+
+plot_original(training$under.five.deaths) + 
+  xlab("Under age 5 deaths per 1000")
+plot_original_interaction(training$under.five.deaths) + 
+  xlab("Under age 5 deaths per 1000")
+plot_poly(training$under.five.deaths)+ 
+  xlab("Under age 5 deaths per 1000")
+plot_log(training$under.five.deaths)+ 
+  xlab("Under age 5 deaths per 1000")
+
+# Total Expenditures Variable
+
+plot_original(training$Total.expenditure) + 
+  xlab("Percentage of total government expenditures on health")
+plot_original_interaction(training$Total.expenditure) + 
+  xlab("Percentage of total government expenditures on health")
+plot_poly(training$Total.expenditure)+ 
+  xlab("Percentage of total government expenditures on health")
+plot_log(training$Total.expenditure)+ 
+  xlab("Percentage of total government expenditures on health")
+
+# Diphtheria Variable
+
+plot_original(training$Diphtheria) + 
+  xlab("DPT3 Immunization Coverage among 1-year-olds")
+plot_original_interaction(training$Diphtheria) + 
+  xlab("DPT3 Immunization Coverage among 1-year-olds")
+plot_poly(training$Diphtheria)+ 
+  xlab("DPT3 Immunization Coverage among 1-year-olds")
+plot_log(training$Diphtheria)+ 
+  xlab("DPT3 Immunization Coverage among 1-year-olds")
+
+# HIV AIDS Variable
+
+plot_original(training$HIV.AIDS) + xlab ("HIV/AIDS Deaths per 1000 live births")
+plot_original_interaction(training$HIV.AIDS) + xlab ("HIV/AIDS Deaths per 1000 live births")
+plot_poly(training$HIV.AIDS)+ xlab ("HIV/AIDS Deaths per 1000 live births")
+plot_log(training$HIV.AIDS)+ xlab ("HIV/AIDS Deaths per 1000 live births")
+
+# GDP Variable
+
+plot_original(training$GDP) + xlab("Gross Domestic Product per capita in USD")
+plot_original_interaction(training$GDP) + xlab("Gross Domestic Product per capita in USD")
+plot_poly(training$GDP)+ xlab("Gross Domestic Product per capita in USD")
+plot_log(training$GDP)+ xlab("Gross Domestic Product per capita in USD")
+
+# Thinness 10-19 Years Variable
+
+plot_original(training$thinness..1.19.years) + 
+  xlab("Prevalence of thinness among children ages 10 to 19")
+plot_original_interaction(training$thinness..1.19.years) + 
+  xlab("Prevalence of thinness among children ages 10 to 19")
+plot_poly(training$thinness..1.19.years)+ 
+  xlab("Prevalence of thinness among children ages 10 to 19")
+plot_log(training$thinness..1.19.years)+ 
+  xlab("Prevalence of thinness among children ages 10 to 19")
+
+# Thinness 5-9 Variable
+
+plot_original(training$thinness.5.9.years)+ 
+  xlab("Prevalence of thinness among children ages 5 to 9")
+plot_original_interaction(training$thinness.5.9.years)+ 
+  xlab("Prevalence of thinness among children ages 5 to 9")
+plot_poly(training$thinness.5.9.years)+ 
+  xlab("Prevalence of thinness among children ages 5 to 9")
+plot_log(training$thinness.5.9.years)+ 
+  xlab("Prevalence of thinness among children ages 5 to 9")
+
+# Income Composition of Resources Variable
+
+plot_original(training$Income.composition.of.resources) + 
+  xlab("Human Development Index in terms of income composition of resources")
+plot_original_interaction(training$Income.composition.of.resources) + 
+  xlab("Human Development Index in terms of income composition of resources")
+plot_poly(training$Income.composition.of.resources)+ 
+  xlab("Human Development Index in terms of income composition of resources")
+plot_log(training$Income.composition.of.resources)+ 
+  xlab("Human Development Index in terms of income composition of resources")
+
+# Schooling Variable
+
+plot_original(training$Schooling) + xlab("Years in School")
+plot_original_interaction(training$Schooling) + xlab("Years in School")
+plot_poly(training$Schooling)+ xlab("Years in School")
+plot_log(training$Schooling)+ xlab("Years in School")
+```
+
+Original Model for comparison
+```{r Original Model}
+original.model <- lm(Life.expectancy~ Polio + Alcohol + BMI +
+                       Diphtheria+ Schooling + HIV.AIDS + GDP +
+                       thinness..1.19.years + Measles + Total.expenditure + 
+                       Income.composition.of.resources, training)
+
+plot(original.model)
+```
+Fitting a complex model with polynomials up to 2 & logged variables
+
+```{r Complex poly 2 log Model}
+poly2logmodel <- lm(Life.expectancy~ poly(Polio,2)+
+                      poly(Alcohol,2)+
+                      poly(BMI,2)+
+                      poly(Diphtheria,2)+
+                      poly(Schooling,2)+
+                      log(HIV.AIDS) +
+                      log(GDP) +
+                      log(thinness..1.19.years) +
+                      Measles +
+                      Total.expenditure+
+                      Income.composition.of.resources, training)
+
+plot(poly2logmodel)
+
+```
+
+Fitting a complex model with polynomials up to 7 & logged variables
+
+```{r Complex poly 7 log Model}
+poly7logmodel <- lm(Life.expectancy~ poly(Polio,7)+
+                      sqrt(Alcohol)+
+                      poly(BMI,7)+
+                      poly(Diphtheria,5)+
+                      poly(Schooling,7)+
+                      log(HIV.AIDS) +
+                      log(GDP) +
+                      log(thinness..1.19.years) +
+                      Measles +
+                      Total.expenditure+
+                      Income.composition.of.resources, training)
+
+plot(poly7logmodel)
+
+```
+
+Fitting interaction terms on regular model
+```{r Original with interaction Model}
+interaction.model <- lm(Life.expectancy~ Polio:Status+Alcohol:Status+BMI:Status+
+                          Diphtheria:Status+Schooling:Status+
+                          HIV.AIDS:Status+GDP:Status+
+                          thinness..1.19.years:Status+
+                          Measles:Status+Total.expenditure:Status+
+                          Income.composition.of.resources:Status, training)
+
+plot(interaction.model)
+
+```
+Fitting interaction on poly2logmodel
+```{r Complex poly 2 log with interaction Model}
+poly2log.interaction.model <- lm(Life.expectancy~ poly(Polio,2):Status+
+                      poly(Alcohol,2):Status+
+                      poly(BMI,2):Status+
+                      poly(Diphtheria,2):Status+
+                      poly(Schooling,2):Status+
+                      log(HIV.AIDS):Status +
+                      log(GDP):Status +
+                      log(thinness..1.19.years):Status +
+                      Measles:Status +
+                      Total.expenditure:Status+
+                      Income.composition.of.resources:Status, training)
+
+plot(poly2log.interaction.model)
+
+```
+Fitting interaction on poly7logmodel
+```{r Complex poly 7 log with interaction Model}
+poly7log.interaction.model <- lm(Life.expectancy~ poly(Polio,7):Status+
+                      sqrt(Alcohol):Status+
+                      poly(BMI,7):Status+
+                      poly(Diphtheria,5):Status+
+                      poly(Schooling,7):Status+
+                      log(HIV.AIDS):Status +
+                      log(GDP):Status +
+                      log(thinness..1.19.years):Status +
+                      Measles:Status +
+                      Total.expenditure:Status+
+                      Income.composition.of.resources:Status, training)
+
+plot(poly7log.interaction.model)
+
+```
+
+Fitting a complex model with polynomials up to 7 & logged variables and categorical variable Status
+
+```{r Complex poly 7 add Status log Model}
+status.poly7logmodel <- lm(Life.expectancy~ Status + poly(Polio,7)+
+                      sqrt(Alcohol)+
+                      poly(BMI,7)+
+                      poly(Diphtheria,5)+
+                      poly(Schooling,7)+
+                      log(HIV.AIDS) +
+                      log(GDP) +
+                      log(thinness..1.19.years) +
+                      Measles +
+                      Total.expenditure+
+                      Income.composition.of.resources, training)
+
+plot(status.poly7logmodel)
+
+```
+Simple Model
+```{r}
+simple <- lm(Life.expectancy ~ HIV.AIDS + Alcohol:Status + Total.expenditure, training)
+plot(simple)
+```
+Predictions
+```{r Predictions}
+# RMSE of Full Model
+full.model_Preds = predict(full.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = full.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Penalized Regression Model
+glmnet.fit.model_Preds = predict(glmnet.fit.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = glmnet.fit.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Forward Selection Model
+fwd.select.model_Preds = predict(fwd.select.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = fwd.select.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Backward Selection Model
+bck.select.model_Preds = predict(bck.select.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = bck.select.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Stepwise Selection Model
+sw.select.model_Preds = predict(sw.select.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = sw.select.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Original Model
+original.model_Preds = predict(original.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = original.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Poly2Log Model
+poly2logmodel_Preds = predict(poly2logmodel, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = poly2logmodel_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Poly7Log Model
+
+poly7logmodel_Preds = predict(poly7logmodel, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = poly7logmodel_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Original with Interaction Model
+interaction.model_Preds = predict(interaction.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = interaction.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Poly2Log Model with interactions
+poly2log.interaction.model_Preds = predict(poly2log.interaction.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = poly2log.interaction.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+
+# RMSE of Poly7Log Model with interactions
+poly7log.interaction.model_Preds = predict(poly7log.interaction.model, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = poly7log.interaction.model_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
+# RMSE of Poly7Log Model with Categorical variable Status added (not as interaction)
+status.poly7logmodel_Preds = predict(status.poly7logmodel, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = status.poly7logmodel_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+```
+#knn with training 
+```{r}
+library(caret)
+fit_cont1 = trainControl(method = "repeatedcv", number = 10, repeats = 1)
+
+set.seed(1364)
+
+knnfit1 = train(Life.expectancy~Adult.Mortality + infant.deaths + Alcohol + percentage.expenditure + Measles + BMI + under.five.deaths + Polio + Total.expenditure + Diphtheria + HIV.AIDS + thinness..1.19.years + thinness.5.9.years + Income.composition.of.resources + Schooling + logGDP, data =training, method = "knn", trControl = fit_cont1, tuneGrid = expand.grid(k = c(1:30)))
+
+plot(knnfit1)
+
+updateval = validate[,c("Life.expectancy", "Adult.Mortality", "infant.deaths", "Alcohol", "percentage.expenditure", "Measles", "BMI", "under.five.deaths", "Polio", "Total.expenditure", "Diphtheria", "HIV.AIDS", "thinness..1.19.years","thinness.5.9.years",  "Income.composition.of.resources", "Schooling", "logGDP")]
+
+prediction = predict(knnfit1, newdata = updateval)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, Predicted = prediction)
+
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+
+MSPE$SquaredResidual = MSPE$Residual^2
+
+sqrt(mean(MSPE$SquaredResidual))
+
+#prediction = predict(knnfit1, newdata = validate)
+#cf = confusionMatrix(prediction, updateval$Life.expectancy)
+#cf
+#print(cf)
+
+```
