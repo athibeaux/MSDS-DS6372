@@ -38,9 +38,10 @@ ggplot(data = life) + geom_point(mapping = aes(x = GDP, y = Life.expectancy))
 ##Checking Data Types
 ```{r}
 str(life)
-vis_miss(life)
+vis_miss(life) + theme(axis.text.x = element_text(angle = 90, hjust = 0))
 dim(life)
 View(life)
+#sum(is.na(life))
 ```
 
 #Imputing using Median
@@ -111,7 +112,7 @@ ggpairs(training[,c(4,17:20)], lower = list(continuous = wrap("points", color = 
 
 
 
-#Residuals for chosen MLR model 
+#Residuals  first model 
 ```{r}
 set.seed(2345)
 eightVar = lm(Life.expectancy~HIV.AIDS+Schooling+Alcohol+BMI+Polio+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = training)
@@ -123,7 +124,7 @@ plot(eightVar)
 
 ```
 
-#Best MLR 
+#Best final MLR 
 ```{r}
 set.seed(2323)
 lessvar = lm(Life.expectancy~HIV.AIDS+Schooling+BMI+Diphtheria+logGDP+thinness..1.19.years+Income.composition.of.resources, data = training)
