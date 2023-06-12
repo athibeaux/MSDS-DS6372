@@ -829,6 +829,16 @@ MSPE$Residual = MSPE$Observed - MSPE$Predicted
 MSPE$SquaredResidual = MSPE$Residual^2
 sqrt(mean(MSPE$SquaredResidual))
 
+# RMSE of Custom Model
+set.seed(2323)
+custom_Preds = predict(lessvar, newdata = validate)
+
+MSPE = data.frame(Observed = validate$Life.expectancy, 
+                  Predicted = custom_Preds)
+MSPE$Residual = MSPE$Observed - MSPE$Predicted
+MSPE$SquaredResidual = MSPE$Residual^2
+sqrt(mean(MSPE$SquaredResidual))
+
 # RMSE of Penalized Regression Model
 glmnet.fit.model_Preds = predict(glmnet.fit.model, newdata = validate)
 
