@@ -5,4 +5,4 @@ Topics: Multilinear Regression, Parametric vs. Non-Parametric Models, Complex Li
 
 Link to Kaggle Data: https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
 Link to Project Presentation: https://docs.google.com/presentation/d/1JOulyPlfM5Fj3gAxZ6QqzZxNpV-hel1yMYpeZu3hsUs/edit?usp=sharing
-Link to Presentation:
+Link to Presentation: https://youtu.be/iaLnXe_rnkY
