@@ -100,6 +100,13 @@ ggplot(data = training) + geom_point(mapping = aes(x = log(GDP), y = Life.expect
 ```
 # EDA
 
+```{r}
+# Plot by Year
+
+training %>% ggplot(aes(x=Year, y=Life.expectancy)) + geom_point()
+
+
+```
 ## World Map, Color plotting 
 ```{r}
 #Creating the World 
